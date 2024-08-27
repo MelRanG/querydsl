@@ -1,4 +1,4 @@
-package study.data_jpa.entity;
+package study.querydsl.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -8,15 +8,8 @@ import lombok.Setter;
 
 @Entity
 @Getter @Setter
-public class Member {
+public class Hello {
 
     @Id @GeneratedValue
     private Long id;
-    private String username;
-    protected Member (){
-    }
-
-    public Member(String username){
-        this.username = username;
-    }
 }
