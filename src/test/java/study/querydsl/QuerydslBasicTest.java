@@ -1,11 +1,15 @@
 package study.querydsl;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryFactory;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -443,5 +447,100 @@ public class QuerydslBasicTest {
                 .select(new QMemberDto(member.username, member.age))
                 .from(member)
                 .fetch();
+    }
+
+    @Test
+    void dynamicQuery_BooleanBuilder(){
+        //동적쿼리란 null이면 값이 안들어가고 null이 아니면 쿼리에 값이 들어가는 것
+        String usernameParam = "member1";
+        Integer ageParam = null;
+
+        List<Member> result = selectMember1(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+    }
+
+    private List<Member> selectMember1(String usernameParam, Integer ageParam) {
+        BooleanBuilder builder = new BooleanBuilder();
+        if(usernameParam != null){
+            builder.and(member.username.eq(usernameParam));
+        }
+        if(ageParam != null){
+            builder.and(member.age.eq(ageParam));
+        }
+
+        return queryFactory
+                .selectFrom(member)
+                .where(builder)
+                .fetch();
+    }
+
+    @Test
+    void dynamicQuery_WhereParam(){
+        //동적쿼리란 null이면 값이 안들어가고 null이 아니면 쿼리에 값이 들어가는 것
+        String usernameParam = "member1";
+        Integer ageParam = null;
+
+        List<Member> result = selectMember2(usernameParam, ageParam);
+        assertThat(result.size()).isEqualTo(1);
+    }
+
+    private List<Member> selectMember2(String usernameParam, Integer ageParam) {
+        //아래처럼 구현하면 null값은 무시된다. 다른 쿼리에서 재활용 가능
+        return queryFactory
+                .selectFrom(member)
+                .where(usernameEq(usernameParam), ageEq(ageParam))
+                //.where(allEq(usernameParam, ageParam))도 가능
+                .fetch();
+    }
+
+    private BooleanExpression usernameEq(String usernameParam) {
+        if(usernameParam == null) return null;
+        return member.username.eq(usernameParam);
+
+    }
+
+    private BooleanExpression ageEq(Integer ageParam) {
+        //3항연산자도 ㄱㅊ
+        return ageParam != null ? member.age.eq(ageParam) : null;
+    }
+
+    private BooleanExpression allEq(String username, Integer age){
+        return usernameEq(username).and(ageEq(age));
+    }
+
+    @Test
+    void bulkUpdate(){
+        //JPA에선 update에 값을 넣으면 알아서 수정된다. 이건 1건당 1번의 쿼리로 업데이트 되기 때문에 한번에 전부를 바꿀 땐 아래처럼 사용
+        //단 벌크연산은 DB에 값을 바로 넣기 때문에 영속성 컨텍스트의 상태와 DB의 상태가 달라진다.
+        long count = queryFactory
+                .update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(28))
+                .execute();
+        //이 상태에서 queryFactory에서 select하면 영속성 컨텍스트에 있는 값을 가져옴
+        em.flush();
+        em.clear();
+
+        long countAdd = queryFactory
+                .update(member)
+                .set(member.age, member.age.add(1))
+                .execute();
+    }
+
+    @Test
+    void sqlFuntion(){
+        List<String> result = queryFactory
+                .select(Expressions.stringTemplate(
+                        "function('replace', {0}, {1}, {2})",
+                        member.username, "member", "M"))
+                .from(member)
+                .fetch();
+        List<String> lower = queryFactory
+                .select(member.username)
+                .from(member)
+                .where(member.username.eq(Expressions.stringTemplate("function('lower', {0})",
+                        member.username)))
+                .fetch();
+        //member.username.lower()가 가능함
     }
 }
